@@ -20,9 +20,10 @@ struct Edge {
 };
 
 struct Node {
-	Node (int i) : id(i) { }
 	int id;
 	set<Edge, greater<Edge>> edges;
+
+	Node (int i) : id(i) { }
 
 	bool operator< (const Node &other) const {
 		return id < other.id;
@@ -41,8 +42,8 @@ int main(int argc, char* argv[]) {
 	string subString; //The split the line into tokens
 	int i; //Need this for iterators
 	set<Node>::iterator nit; //To iterate and find on the set
-	set<Edge, greater<Edge>>::iterator eit;
-	int first_node; //Nodes to iterate through while reading edges
+	set<Edge, greater<Edge>>::iterator eit; //To iterate as well
+	int first_node; //Nodes to use and construct while reading edges
 	int second_node;
 	int cost; //Benefit and cost to use while reading edges
 	int benefit;
@@ -97,6 +98,7 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
+	i = 0;
 	for (nit = graph.nodes.begin(); nit != graph.nodes.end(); nit++) {
 		Node auxn = *nit;
 		for (eit = auxn.edges.begin(); eit != auxn.edges.end(); eit++) {
