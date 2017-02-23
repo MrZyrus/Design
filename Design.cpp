@@ -83,6 +83,9 @@ Graph prim(Graph g) {
 	return forest;
 }
 
+//vector<int> fleury(Graph g) {	//To generate the eulerian trail
+//}
+
 
 int main(int argc, char* argv[]) {
 	struct Graph graph;	//The graph
@@ -95,7 +98,7 @@ int main(int argc, char* argv[]) {
 	int first_node; //Nodes to use and construct while reading edges
 	int second_node;
 	int cost; //Benefit and cost to use while reading edges
-	int benefit;
+	int benefit;	
 
 	getline(file, edge_string); //Getting the first line, but number of nodes is not relevant
 	getline(file, edge_string); //Getting the second line, number of edges also irrelevant
