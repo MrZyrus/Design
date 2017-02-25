@@ -24,9 +24,10 @@ struct Edge {
 
 struct Node {
 	int id;
+	int explored;
 	multiset<Edge, greater<Edge>> edges;
 
-	Node (int i) : id(i) { }
+	Node (int i) : id(i), explored(0) { }
 
 	bool operator< (const Node &other) const {
 		return id < other.id;
@@ -76,26 +77,55 @@ struct Graph add_edge_to_graph(struct Graph g, Edge e) {
 }
 
 set<Graph> r_components(Graph g) {
-	set<Node> nodes_left;
-	set<Node>::iterator nit;
-	multiset<Edge, greater<Edge>>::iterator eit;
-	Node auxn = Node(1);
-	Edge auxe;
-	vector<Node> stack;
+	set<Node> nodes_left;	//First, we need a set of all the nodes to explore
+	set<Node>::iterator nit;	//Gotta iterate through them
+	vector<Node> stack;	//Stack to use for DFS
+	set<Graph> components;	//All Components so far found
+	Graph connected;	//Current connected component found
+	int new_component;	//Just to check if we found a new component or not
 
-	for (nit = g.nodes.begin(); nit != g.nodes.end(); nit++) {
-		auxn = *nit;
-		nodes_left.insert(auxn);
+	for (set<Node>::iterator it = g.nodes.begin(); it != g.nodes.end(); it++) {	//First, add all the nodes of the graph to check
+		Node n = *it;
+		nodes_left.insert(n);
 	}
 
-	nit = nodes_left.begin();
-	while (nit != nodes_left.end()) {
-		auxn = *nit;
-		stack.push_back(auxn);
-		while (!stack.empty()) {
+	for (set<Node>::iterator it = nodes_left.begin(); it != nodes_left.end(); it++) {	//We iterate through them
+		Node n = *it;
+		nit = g.nodes.find(n);	//Find it in the graph, this is to check if it has been explored
+		n = *nit;
 
+		if (!n.explored) {	//If it hasn't been explored, add it to the stack to dfs
+			stack.push_back(n);
 		}
-	} 
+
+		while (!stack.empty()) {	//DFS through it
+			new_component = 1;	//Since we're exploring it, we have found a new component
+			n = stack.back();	//So we pop the first element from the stack
+			stack.pop_back();
+			connected.nodes.insert(n);	//We insert it into the connected component 
+
+			for (multiset<Edge, greater<Edge>>::iterator eit = n.edges.begin(); eit != n.edges.end(); eit++) {	//Next we iterate through its edges
+				Edge e = *eit;
+				nit = g.nodes.find(Node(e.destination));	//Find it on the graph, check if it has been explored before
+				Node n2 = *nit;
+				if (!n2.explored) {	//If it hasn't, it goes to the stack, gotta DFS through as well
+					stack.push_back(n2);
+				}
+			}
+			nit = g.nodes.find(n);	//Once it's on the stack, have to mark it as explored
+			n.explored = 1;
+			g.nodes.erase(nit);	//Updating it on the graph
+			g.nodes.insert(n);
+		}
+
+		if (new_component) {	//If we have found a new component, add it to the components set
+			components.insert(connected);
+			connected.nodes.clear();
+			new_component = 0;	//Reset new component marker
+		}	
+	}
+
+	return components;	//Once all connected components have been found, return it
 }
 
 vector<int> trail(Graph g) {
@@ -108,58 +138,58 @@ vector<int> trail(Graph g) {
 	set<Node>::iterator nit;	//Need to iterate through nodes as we build the cycle
 	multiset<Edge, greater<Edge>>::iterator eit;	//Also need to iterate through the edges
 	nit = g.nodes.begin();	//We begin on the first node, the depot
-	Node auxn = *nit;	
-	eit = auxn.edges.begin();	//And on the first edge of it, they're already sorted by gain
-	Edge auxe = *eit;
+	Node n = *nit;	
+	eit = n.edges.begin();	//And on the first edge of it, they're already sorted by gain
+	Edge e = *eit;
 
 	do {	//Always happens at least once
-		if (auxe.passes < 2) {	//Edges can only be travelled through at most twice
-			cycle.push_back(auxe.destination);	//If it hasn't be travelled twice, we pick it, add it to the cycle
-			cycle[0] += auxe.benefit - auxe.cost;	//Update the gain
+		if (e.passes < 2) {	//Edges can only be travelled through at most twice
+			cycle.push_back(e.destination);	//If it hasn't be travelled twice, we pick it, add it to the cycle
+			cycle[0] += e.benefit - e.cost;	//Update the gain
 
-			old_benefit = auxe.benefit;	//Save the old benefit
-			auxe.benefit = 0;	//Update the benefit to 0, since it just got travelled, notice this happens regardless of passes
-			auxe.passes++;	//Update the passes, notice this only happens at most twice with every edge
+			old_benefit = e.benefit;	//Save the old benefit
+			e.benefit = 0;	//Update the benefit to 0, since it just got travelled, notice this happens regardless of passes
+			e.passes++;	//Update the passes, notice this only happens at most twice with every edge
 
-			auxn.edges.erase(eit);	//Update the edge in the node
-			auxn.edges.insert(auxe);
+			n.edges.erase(eit);	//Update the edge in the node
+			n.edges.insert(e);
 
 			g.nodes.erase(nit);	//Update the node in the graph
-			g.nodes.insert(auxn);
+			g.nodes.insert(n);
 
-			swap(auxe.origin, auxe.destination);	//Swap the origin and destination, to update it on the other node
+			swap(e.origin, e.destination);	//Swap the origin and destination, to update it on the other node
 
-			nit = g.nodes.find(Node(auxe.origin));	//Find the other node
-			auxn = *nit;
+			nit = g.nodes.find(Node(e.origin));	//Find the other node
+			n = *nit;
 
-			old_destination = auxe.destination;	//We save the old destination to find the correct node, since
-			auxe.benefit = old_benefit;	//Restore the original edge, this is for purposes of finding it
-			eit = auxn.edges.find(auxe);	//Then once restored, we find it
-			auxe = *eit;
-			while (auxe.destination != old_destination) {	//Since the nodes are found using only benefit/cost
+			old_destination = e.destination;	//We save the old destination to find the correct node, since
+			e.benefit = old_benefit;	//Restore the original edge, this is for purposes of finding it
+			eit = n.edges.find(e);	//Then once restored, we find it
+			e = *eit;
+			while (e.destination != old_destination) {	//Since the nodes are found using only benefit/cost
 				eit++;	//We have to make sure we get the right node comparing the destination
-				auxe = *eit;	//We conveniently saved previously
+				e = *eit;	//We conveniently saved previously
 			}
 
-			auxe.benefit = 0;	//We update the benefit again to 0
-			auxe.passes++;	//Update the passes on it as well
-			auxn.edges.erase(eit);	//We update the edge on the node
-			auxn.edges.insert(auxe);
+			e.benefit = 0;	//We update the benefit again to 0
+			e.passes++;	//Update the passes on it as well
+			n.edges.erase(eit);	//We update the edge on the node
+			n.edges.insert(e);
 
 			g.nodes.erase(nit);	//Update the node in the grapph
-			g.nodes.insert(auxn);
+			g.nodes.insert(n);
 
-			nit = g.nodes.find(auxn);	//Find the new node, it was already updated
-			auxn = *nit;
-			eit = auxn.edges.begin();	//Find the next edge to follow through
-			auxe = *eit;
+			nit = g.nodes.find(n);	//Find the new node, it was already updated
+			n = *nit;
+			eit = n.edges.begin();	//Find the next edge to follow through
+			e = *eit;
 		}
 		
 		else {
 			eit++; //Of course, if it already has 2 passes, we just go to the next edge
-			auxe = *eit;
+			e = *eit;
 		}
-	} while (auxn.id != 1 || auxe.benefit - 2 * auxe.cost > 0);
+	} while (n.id != 1 || e.benefit - 2 * e.cost > 0);
 	//We do this till we return to the first node and it has no remaining edge with benefit - 2*cost > 0;
 	
 	if (cycle[0] < 0) {	//Of course, once we find a cycle, if it has negative gain
@@ -169,9 +199,7 @@ vector<int> trail(Graph g) {
 		return no_path;
 	}
 	
-	else {
-		return cycle;
-	}
+	return cycle;
 }
 
 
@@ -191,25 +219,24 @@ int main(int argc, char* argv[]) {
 		it_sub_string.clear();
 
 		if (isdigit(edge_string[0])) { //First we check if the first letter is a digit
-			Edge auxe; //Create the actual edge
+			Edge e; //Create the actual edge
 			it_sub_string >> subString; //If it isn't we read the edges
-			auxe.origin = stoi(subString); //First node goes here
+			e.origin = stoi(subString); //First node goes here
 			it_sub_string >> subString;
-			auxe.destination = stoi(subString); //Second node goes here
+			e.destination = stoi(subString); //Second node goes here
 			it_sub_string >> subString; 
-			auxe.cost = stoi(subString); //Cost first
+			e.cost = stoi(subString); //Cost first
 			it_sub_string >> subString;
-			auxe.benefit = stoi(subString); //Benefit second
-			auxe.passes = 0;
+			e.benefit = stoi(subString); //Benefit second
+			e.passes = 0;
 
-			if (auxe.benefit - 2 * auxe.cost >= 0) { //If the edge belongs to R then add it to the R graph
-				r_graph = add_edge_to_graph(r_graph, auxe);
+			if (e.benefit - 2 * e.cost >= 0) { //If the edge belongs to R then add it to the R graph
+				r_graph = add_edge_to_graph(r_graph, e);
 			}
 
-			graph =	add_edge_to_graph(graph, auxe);
+			graph =	add_edge_to_graph(graph, e);
 		}
 	}
-
 
 	for (set<Node>::iterator it = graph.nodes.begin(); it != graph.nodes.end(); it++) {
 		Node n = *it;
@@ -229,9 +256,24 @@ int main(int argc, char* argv[]) {
 		}	
 	}
 
+	set<Graph> cc = r_components(r_graph);
+
+	int k = 1;
+	for (set<Graph>::iterator git = cc.begin(); git != cc.end(); git++) {
+		Graph g = *git;
+		cout << "Connected Component " << k++ << '\n';
+		for (set<Node>::iterator it = g.nodes.begin(); it != g.nodes.end(); it++) {
+			Node n = *it;
+			for (multiset<Edge, greater<Edge>>::iterator eit = n.edges.begin(); eit != n.edges.end(); eit++) {
+				Edge e = *eit;
+				cout << e.origin << ' ' << e.destination << ' ' << e.cost << ' ' << e.benefit << ' ' << e.passes << '\n';
+			}	
+		}
+	}
+
 	vector<int> cycle = trail(graph);
 	for (int i = 0; i < cycle.size(); i++) {
-		cout << cycle[i++] << ' ';
+		cout << cycle[i] << ' ';
 	}
 	cout << '\n';
 }
