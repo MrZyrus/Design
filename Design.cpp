@@ -35,129 +35,135 @@ struct Node {
 
 struct Graph {
 	set<Node> nodes;
+
+	bool operator< (const Graph &other) const {
+		set<Node>::iterator it = nodes.begin();
+		Node a = *it;
+		it = other.nodes.begin();
+		Node b = *it;
+		return a < b;
+	}
 };
 
-Graph prim(Graph g) {
-	struct Graph forest;	//Forest to give as an answer
-	multiset<Edge, greater<Edge>> edges;	//Edges to iterate through to construct the solution
-	set<Node>::iterator nit;	//Node iterator
-	multiset<Edge, greater<Edge>>::iterator eit1;	//Need two edge iterators
-	multiset<Edge, greater<Edge>>::iterator eit2;
-	
-	nit = g.nodes.begin();	//Get the first node to initialize the forest
-	Node auxn = *nit;
-	for (eit1 = auxn.edges.begin(); eit1 != auxn.edges.end(); eit1++) {	//Add all of its edges to iterate through
-		Edge auxe = *eit1;
-		edges.insert(auxe);
+struct Graph add_edge_to_graph(struct Graph g, Edge e) {
+	set<Node>::iterator it = g.nodes.find(Node(e.origin)); //Find if the node is already on the graph
+	if (it == g.nodes.end()) { //Let's say it isn't
+		Node n = Node(e.origin); //So we just create it
+		n.edges.insert(e); //Add the edge to its adjacency list
+		g.nodes.insert(n); //Add the node to the graph
 	}
-	auxn.edges.clear();	//Clear its edges to add to the forest
-	forest.nodes.insert(auxn);	//Finally, add it
+	else { //But if it is
+		Node n = *it; //We copy it somewhere safe to edit
+		n.edges.insert(e); //We add the edge to its adjacency list
+		g.nodes.erase(it); //Erase the one we found
+		g.nodes.insert(n); //Replace with the new one
+	}
 
-	eit1 = edges.begin();	//Get the first edge, notice they're already ordered
-	do {
-		Edge auxe = *eit1;	//First edge
-		nit = forest.nodes.find(Node(auxe.destination));	//Search if its destination is already is in the forest
-		if (nit == forest.nodes.end()) {	//Let's say it is
-			nit = forest.nodes.find(auxe.origin);	//Find the origin node
-			auxn = *nit;	
-			auxn.edges.insert(auxe);	//Add the new edge to it
-			forest.nodes.erase(nit);	//Erase and replace with the new node
-			forest.nodes.insert(auxn);
+	swap(e.origin, e.destination); //Now we do the same process with the other node
+	it = g.nodes.find(e.origin); //This is because it is a non-directed graph
+	if (it == g.nodes.end()) { //So technically every edge goes in both nodes it connects
+		Node n = Node(e.origin);
+		n.edges.insert(e);
+		g.nodes.insert(n);
+	}
+	else {
+		Node n = *it;
+		n.edges.insert(e);
+		g.nodes.erase(it);
+		g.nodes.insert(n);
+	}
+	return g;
+}
 
-			auxn.id = auxe.destination;	//Then, create the new node to add to the forest
-			auxn.edges.clear();	//Clear its edges again
-			swap(auxe.origin, auxe.destination);	//Swap its origins and destination
-			auxn.edges.insert(auxe);	//Add the modified edge
-			forest.nodes.insert(auxn);	//Add the second node to the forest
+set<Graph> r_components(Graph g) {
+	set<Node> nodes_left;
+	set<Node>::iterator nit;
+	multiset<Edge, greater<Edge>>::iterator eit;
+	Node auxn = Node(1);
+	Edge auxe;
+	vector<Node> stack;
 
-			nit = g.nodes.find(Node(auxe.origin));	//Find the new node in the graph
-			auxn = *nit;	
-			for (eit2 = auxn.edges.begin(); eit2 != auxn.edges.end(); eit2++) {	//Add all of its edges to iterate through
-				Edge auxe = *eit2;
-				edges.insert(auxe);
-			}
+	for (nit = g.nodes.begin(); nit != g.nodes.end(); nit++) {
+		auxn = *nit;
+		nodes_left.insert(auxn);
+	}
+
+	nit = nodes_left.begin();
+	while (nit != nodes_left.end()) {
+		auxn = *nit;
+		stack.push_back(auxn);
+		while (!stack.empty()) {
+
 		}
-
-		edges.erase(eit1);	//Remove the edge from the set
-		eit1 = edges.begin();	//Get another one
-	} while(eit1 != edges.end());	//Repeat this till we run out of edges
-	return forest;
+	} 
 }
 
 vector<int> trail(Graph g) {
-	vector<int> cycle;
-	cycle.push_back(0);
-	cycle.push_back(1);
+	vector<int> cycle;	//Cycle to return, just using a dynamic array
+	cycle.push_back(0);	//The first element is the total gain so far of this cycle
+	cycle.push_back(1);	//We always start from node 1
 
-	int old_benefit;
-	int old_destination;
-	set<Node>::iterator nit;
-	multiset<Edge, greater<Edge>>::iterator eit;
-	nit = g.nodes.begin();
-	Node auxn = *nit;
-	eit = auxn.edges.begin();
+	int old_benefit;	//Gotta save the old benefit to update the edges
+	int old_destination;	//Saving the old destination to find the edges to update
+	set<Node>::iterator nit;	//Need to iterate through nodes as we build the cycle
+	multiset<Edge, greater<Edge>>::iterator eit;	//Also need to iterate through the edges
+	nit = g.nodes.begin();	//We begin on the first node, the depot
+	Node auxn = *nit;	
+	eit = auxn.edges.begin();	//And on the first edge of it, they're already sorted by gain
 	Edge auxe = *eit;
 
-	do {
-		if (auxe.passes < 2) {
-			cycle.push_back(auxe.destination);
-			cycle[0] += auxe.benefit - auxe.cost;
+	do {	//Always happens at least once
+		if (auxe.passes < 2) {	//Edges can only be travelled through at most twice
+			cycle.push_back(auxe.destination);	//If it hasn't be travelled twice, we pick it, add it to the cycle
+			cycle[0] += auxe.benefit - auxe.cost;	//Update the gain
 
-			old_benefit = auxe.benefit;
-			auxe.benefit = 0;
-			auxe.passes++;
+			old_benefit = auxe.benefit;	//Save the old benefit
+			auxe.benefit = 0;	//Update the benefit to 0, since it just got travelled, notice this happens regardless of passes
+			auxe.passes++;	//Update the passes, notice this only happens at most twice with every edge
 
-			auxn.edges.erase(eit);
+			auxn.edges.erase(eit);	//Update the edge in the node
 			auxn.edges.insert(auxe);
 
-			g.nodes.erase(nit);
+			g.nodes.erase(nit);	//Update the node in the graph
 			g.nodes.insert(auxn);
 
-			swap(auxe.origin, auxe.destination);
+			swap(auxe.origin, auxe.destination);	//Swap the origin and destination, to update it on the other node
 
-			nit = g.nodes.find(Node(auxe.origin));
+			nit = g.nodes.find(Node(auxe.origin));	//Find the other node
 			auxn = *nit;
 
-			auxe.benefit = old_benefit;
-			auxe.passes--;
-			eit = auxn.edges.find(auxe);
-			old_destination = auxe.destination;
+			old_destination = auxe.destination;	//We save the old destination to find the correct node, since
+			auxe.benefit = old_benefit;	//Restore the original edge, this is for purposes of finding it
+			eit = auxn.edges.find(auxe);	//Then once restored, we find it
 			auxe = *eit;
-			while (auxe.destination != old_destination) {
-				eit++;
-				auxe = *eit;
+			while (auxe.destination != old_destination) {	//Since the nodes are found using only benefit/cost
+				eit++;	//We have to make sure we get the right node comparing the destination
+				auxe = *eit;	//We conveniently saved previously
 			}
 
-			auxe.benefit = 0;
-			auxe.passes++;
-
-			auxn.edges.erase(eit);
+			auxe.benefit = 0;	//We update the benefit again to 0
+			auxe.passes++;	//Update the passes on it as well
+			auxn.edges.erase(eit);	//We update the edge on the node
 			auxn.edges.insert(auxe);
 
-			g.nodes.erase(nit);
+			g.nodes.erase(nit);	//Update the node in the grapph
 			g.nodes.insert(auxn);
 
-			nit = g.nodes.find(auxn);
+			nit = g.nodes.find(auxn);	//Find the new node, it was already updated
 			auxn = *nit;
-			eit = auxn.edges.begin();
+			eit = auxn.edges.begin();	//Find the next edge to follow through
 			auxe = *eit;
 		}
 		
 		else {
-			eit++;
+			eit++; //Of course, if it already has 2 passes, we just go to the next edge
 			auxe = *eit;
 		}
-
-		cout << "Current Cycle \n";
-		for (int i = 0; i < cycle.size(); i++) {
-			cout << cycle[i] << ' ';
-		}
-		cout << '\n';
-
 	} while (auxn.id != 1 || auxe.benefit - 2 * auxe.cost > 0);
+	//We do this till we return to the first node and it has no remaining edge with benefit - 2*cost > 0;
 	
-	if (cycle[0] < 0) {
-		vector<int> no_path;
+	if (cycle[0] < 0) {	//Of course, once we find a cycle, if it has negative gain
+		vector<int> no_path;	//We just construct a path where it never leaves and give a 0 gain as answer
 		no_path.push_back(0);
 		no_path.push_back(1);
 		return no_path;
@@ -171,16 +177,10 @@ vector<int> trail(Graph g) {
 
 int main(int argc, char* argv[]) {
 	struct Graph graph;	//The graph
+	struct Graph r_graph; //Graph with ONLY edges that comply with benefit - 2 * cost > 0
 	ifstream file(argv[1]); //Input file as argument
 	string edge_string; //To read lines on the file
 	string subString; //The split the line into tokens
-	int i = 0; //Need this for iterators
-	set<Node>::iterator nit; //To iterate and find on the set
-	multiset<Edge, greater<Edge>>::iterator eit; //To iterate as well
-	int first_node; //Nodes to use and construct while reading edges
-	int second_node;
-	int cost; //Benefit and cost to use while reading edges
-	int benefit;	
 
 	getline(file, edge_string); //Getting the first line, but number of nodes is not relevant
 	getline(file, edge_string); //Getting the second line, number of edges also irrelevant
@@ -191,74 +191,46 @@ int main(int argc, char* argv[]) {
 		it_sub_string.clear();
 
 		if (isdigit(edge_string[0])) { //First we check if the first letter is a digit
-			it_sub_string >> subString; //If it isn't we read the edges
-			first_node = stoi(subString); //First node goes here
-			it_sub_string >> subString;
-			second_node = stoi(subString); //Second node goes here
-			
 			Edge auxe; //Create the actual edge
+			it_sub_string >> subString; //If it isn't we read the edges
+			auxe.origin = stoi(subString); //First node goes here
+			it_sub_string >> subString;
+			auxe.destination = stoi(subString); //Second node goes here
 			it_sub_string >> subString; 
 			auxe.cost = stoi(subString); //Cost first
 			it_sub_string >> subString;
 			auxe.benefit = stoi(subString); //Benefit second
-
-			auxe.origin = first_node; //First origin
-			auxe.destination = second_node; //Then, we create the edge for the first node, clearly goes to the second node
 			auxe.passes = 0;
 
-			nit = graph.nodes.find(Node(first_node)); //Find if the node is already on the graph
-			if (nit == graph.nodes.end()) { //Let's say it isn't
-				Node auxn = Node(first_node); //So we just create it
-				auxn.edges.insert(auxe); //Add the edge to its adjacency list
-				graph.nodes.insert(auxn); //Add the node to the graph
-			}
-			else { //But if it is
-				Node auxn = *nit; //We copy it somewhere safe to edit
-				auxn.edges.insert(auxe); //We add the edge to its adjacency list
-				graph.nodes.erase(nit); //Erase the one we found
-				graph.nodes.insert(auxn); //Replace with the new one
+			if (auxe.benefit - 2 * auxe.cost >= 0) { //If the edge belongs to R then add it to the R graph
+				r_graph = add_edge_to_graph(r_graph, auxe);
 			}
 
-			auxe.origin = second_node; //Now we do the same process with the other node
-			auxe.destination = first_node;
-			nit = graph.nodes.find(Node(second_node)); //This is because it is a non-directed graph
-			if (nit == graph.nodes.end()) { //So technically every edge goes in both nodes it connects
-				Node auxn = Node(second_node);
-				auxn.edges.insert(auxe);
-				graph.nodes.insert(auxn);
-			}
-			else {
-				Node auxn = *nit;
-				auxn.edges.insert(auxe);
-				graph.nodes.erase(nit);
-				graph.nodes.insert(auxn);
-			}
+			graph =	add_edge_to_graph(graph, auxe);
 		}
 	}
 
-	i = 0;
-	for (nit = graph.nodes.begin(); nit != graph.nodes.end(); nit++) {
-		Node auxn = *nit;
-		for (eit = auxn.edges.begin(); eit != auxn.edges.end(); eit++) {
-			Edge auxe = *eit;
-			cout << i++ << ' ' << auxn.id << ' ' << auxe.destination << ' ' << auxe.cost << ' ' << auxe.benefit << ' ' << auxe.benefit - auxe.cost << '\n';
-		}
+
+	for (set<Node>::iterator it = graph.nodes.begin(); it != graph.nodes.end(); it++) {
+		Node n = *it;
+		for (multiset<Edge, greater<Edge>>::iterator eit = n.edges.begin(); eit != n.edges.end(); eit++) {
+			Edge e = *eit;
+			cout << e.origin << ' ' << e.destination << ' ' << e.cost << ' ' << e.benefit << ' ' << e.passes << '\n';
+		}	
 	}
 
-//	struct Graph mst = prim(graph);
+	cout << '\n';
 
-//	i = 0;
-//	for (nit = mst.nodes.begin(); nit != mst.nodes.end(); nit++) {
-//		Node auxn = *nit;
-//		for (eit = auxn.edges.begin(); eit != auxn.edges.end(); eit++) {
-//			Edge auxe = *eit;
-//			cout << i++ << ' ' << auxn.id << ' ' << auxe.destination << ' ' << auxe.cost << ' ' << auxe.benefit << ' ' << auxe.benefit - auxe.cost << '\n';
-//		}
-//	}
+	for (set<Node>::iterator it = r_graph.nodes.begin(); it != r_graph.nodes.end(); it++) {
+		Node n = *it;
+		for (multiset<Edge, greater<Edge>>::iterator eit = n.edges.begin(); eit != n.edges.end(); eit++) {
+			Edge e = *eit;
+			cout << e.origin << ' ' << e.destination << ' ' << e.cost << ' ' << e.benefit << ' ' << e.passes << '\n';
+		}	
+	}
 
 	vector<int> cycle = trail(graph);
-	i = 0;
-	while (i < cycle.size()) {
+	for (int i = 0; i < cycle.size(); i++) {
 		cout << cycle[i++] << ' ';
 	}
 	cout << '\n';
