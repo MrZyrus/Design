@@ -292,7 +292,7 @@ int main(int argc, char* argv[]) {
 			e.benefit = stoi(subString); //Benefit second
 			e.passes = 0;
 
-			if (e.benefit*2.15 - e.cost >= 0) { //If the edge belongs to R then add it to the R graph
+			if (e.benefit - 2 * e.cost >= 0) { //If the edge belongs to R then add it to the R graph
 				r_graph = add_edge_to_graph(r_graph, e);
 			}
 
