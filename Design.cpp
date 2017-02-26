@@ -124,7 +124,6 @@ set<Graph> r_components(Graph g) {
 			new_component = 0;	//Reset new component marker
 		}	
 	}
-
 	return components;	//Once all connected components have been found, return it
 }
 
@@ -300,16 +299,21 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
+	string filename = argv[1];
+	ofstream outfile(filename + "-salida.txt");
+
 	vector<int> cycle = trail(graph);
-	for (int i = 0; i < cycle.size(); i++) {
-		cout << cycle[i] << ' ';
+	outfile << cycle[0] << '\n';
+	for (int i = 1; i < cycle.size(); i++) {
+		outfile << cycle[i] << ' ';
 	}
-	cout << '\n';
 
 	cycle = negative_cycle_elimination(cycle, graph);
 
-	for (int i = 0; i < cycle.size(); i++) {
-		cout << cycle[i] << ' ';
+	ofstream outfile2(filename + "-salida(eliminacionciclosnegativo).txt");
+
+	outfile2 << cycle[0] << '\n';
+	for (int i = 1; i < cycle.size(); i++) {
+		outfile2 << cycle[i] << ' ';
 	}
-	cout << '\n';
 }
