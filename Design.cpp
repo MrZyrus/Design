@@ -128,6 +128,64 @@ set<Graph> r_components(Graph g) {
 	return components;	//Once all connected components have been found, return it
 }
 
+int path_cost(vector<int> path, Graph g) {	//This one just takes a path and returns the gain from it
+	int cost = 0;	//Initialize the cost
+	for (int i = 0; i < path.size() - 1; i++) {	//Iterate through the path
+		set<Node>::iterator nit = g.nodes.find(Node(path[i]));	//Gotta find the node
+		Node n = *nit;
+		multiset<Edge, greater<Edge>>::iterator eit = n.edges.begin();	//Then gotta find the edge to the next node
+		Edge e = *eit;
+		while (e.destination != path[i + 1]) {
+			eit++;
+			e = *eit;
+		}
+		cost += e.benefit - e.cost;	//Once we get it, update the cost
+		e.benefit = 0;	//Update the edge, because the path might contain the same edge twice
+		n.edges.erase(eit);
+		n.edges.insert(e);
+		g.nodes.erase(nit);
+		g.nodes.insert(n);
+
+		swap(e.origin, e.destination);	//Of course, non-directed graph, gotta update both edges in both nodes
+		nit = g.nodes.find(Node(e.origin));
+		n = *nit;
+		eit = n.edges.begin();
+		e = *eit;
+		while (e.destination != path[i]) {
+			eit++;
+			e = *eit;
+		}
+		e.benefit = 0;
+		n.edges.erase(eit);
+		n.edges.insert(e);
+		g.nodes.erase(nit);
+		g.nodes.insert(n);
+	}
+	return cost;	//Once that's all done, return the cost of that path, it might be negative it's a loss
+}
+
+vector<int> negative_cycle_elimination(vector<int> p, Graph g) {	//This looks for a cycle in a path and eliminates it if it has negative gain
+	for (int i = 2; i < p.size() - 2; i++) {	//First, iterate through the path
+		for (int j = i + 1; j < p.size() - 1; j++) {	//Then find the cycle in it 
+			if (p[i] == p[j]) {	//Once it's found we check its cost
+ 				vector<int> cycle;
+				cycle.clear();
+				for (int k = i; k < j + 1; k++) {	//Gotta copy the cycle into another path
+					cycle.push_back(p[k]);
+				}
+				int gain = path_cost(cycle, g);	//Checking its cost
+				if (gain < 0) {	//If the cost is negative
+					p.erase(p.begin()+i, p.begin()+j);	//We delete the cycle from the path
+					p[0] -= gain;	//Update the new gain with the cycle deleted
+					i = 2;	//Since we altered the main array, gotta start the iteration again
+					j = i + 1;
+				}
+			}
+		}
+	}
+	return p;
+}
+
 vector<int> trail(Graph g) {
 	vector<int> cycle;	//Cycle to return, just using a dynamic array
 	cycle.push_back(0);	//The first element is the total gain so far of this cycle
@@ -141,6 +199,7 @@ vector<int> trail(Graph g) {
 	Node n = *nit;	
 	eit = n.edges.begin();	//And on the first edge of it, they're already sorted by gain
 	Edge e = *eit;
+	Graph old_g = g;
 
 	do {	//Always happens at least once
 		if (e.passes < 2) {	//Edges can only be travelled through at most twice
@@ -189,16 +248,19 @@ vector<int> trail(Graph g) {
 			eit++; //Of course, if it already has 2 passes, we just go to the next edge
 			e = *eit;
 		}
-	} while (n.id != 1 || e.benefit - 2 * e.cost > 0);
+		
+	} while (n.id != 1 || e.benefit - 2 * e.cost >= 0);
 	//We do this till we return to the first node and it has no remaining edge with benefit - 2*cost > 0;
 	
 	if (cycle[0] < 0) {	//Of course, once we find a cycle, if it has negative gain
-		vector<int> no_path;	//We just construct a path where it never leaves and give a 0 gain as answer
-		no_path.push_back(0);
-		no_path.push_back(1);
-		return no_path;
+		cycle = negative_cycle_elimination(cycle, old_g);	//We gotta improve it, can't give a negative answer
+		if (cycle[0] < 0) {	//If it's still negative, we just return a 0 as answer
+			vector<int> no_path;
+			no_path.push_back(0);
+			no_path.push_back(1);
+			return no_path;
+		}
 	}
-	
 	return cycle;
 }
 
@@ -230,7 +292,7 @@ int main(int argc, char* argv[]) {
 			e.benefit = stoi(subString); //Benefit second
 			e.passes = 0;
 
-			if (e.benefit - 2 * e.cost >= 0) { //If the edge belongs to R then add it to the R graph
+			if (e.benefit*2.15 - e.cost >= 0) { //If the edge belongs to R then add it to the R graph
 				r_graph = add_edge_to_graph(r_graph, e);
 			}
 
@@ -238,40 +300,14 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	for (set<Node>::iterator it = graph.nodes.begin(); it != graph.nodes.end(); it++) {
-		Node n = *it;
-		for (multiset<Edge, greater<Edge>>::iterator eit = n.edges.begin(); eit != n.edges.end(); eit++) {
-			Edge e = *eit;
-			cout << e.origin << ' ' << e.destination << ' ' << e.cost << ' ' << e.benefit << ' ' << e.passes << '\n';
-		}	
+	vector<int> cycle = trail(graph);
+	for (int i = 0; i < cycle.size(); i++) {
+		cout << cycle[i] << ' ';
 	}
-
 	cout << '\n';
 
-	for (set<Node>::iterator it = r_graph.nodes.begin(); it != r_graph.nodes.end(); it++) {
-		Node n = *it;
-		for (multiset<Edge, greater<Edge>>::iterator eit = n.edges.begin(); eit != n.edges.end(); eit++) {
-			Edge e = *eit;
-			cout << e.origin << ' ' << e.destination << ' ' << e.cost << ' ' << e.benefit << ' ' << e.passes << '\n';
-		}	
-	}
+	cycle = negative_cycle_elimination(cycle, graph);
 
-	set<Graph> cc = r_components(r_graph);
-
-	int k = 1;
-	for (set<Graph>::iterator git = cc.begin(); git != cc.end(); git++) {
-		Graph g = *git;
-		cout << "Connected Component " << k++ << '\n';
-		for (set<Node>::iterator it = g.nodes.begin(); it != g.nodes.end(); it++) {
-			Node n = *it;
-			for (multiset<Edge, greater<Edge>>::iterator eit = n.edges.begin(); eit != n.edges.end(); eit++) {
-				Edge e = *eit;
-				cout << e.origin << ' ' << e.destination << ' ' << e.cost << ' ' << e.benefit << ' ' << e.passes << '\n';
-			}	
-		}
-	}
-
-	vector<int> cycle = trail(graph);
 	for (int i = 0; i < cycle.size(); i++) {
 		cout << cycle[i] << ' ';
 	}
