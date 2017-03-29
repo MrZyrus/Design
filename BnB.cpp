@@ -12,6 +12,7 @@ using namespace std;
 
 struct Edge {
 	int benefit;
+	int original_benefit;
 	int cost;
 	int origin;
 	int destination;
@@ -264,101 +265,95 @@ vector<int> trail(Graph g) {
 }
 
 vector<int> partial_solution;
+int partial_benefit;
 vector<int> best_solution;
-int available_benefit;
+int best_benefit;
+int available_benefit = 0;
+multiset<Edge, greater<Edge>> partial_solution_edges;
+time_t start;
+time_t total_time;
+time_t time_taken;
 
 int bound_check(Edge e, vector<int> cycle) {
 	int e_benefit = e.benefit - e.cost;
-	int partial_solution_benefit = cycle[0] + e_benefit;
+	int partial_solution_benefit = partial_benefit + e_benefit;
 	int max_benefit = available_benefit - max(0, e_benefit) + partial_solution_benefit;
-	if (max_benefit <= best_solution[0]) { return 0; }
+	if (max_benefit <= best_benefit) { return 0; }
 	return 1;
 }
 
+int edge_in_trail(Edge edge, multiset<Edge, greater<Edge>> edges) {
+	int count = 0;
+	Edge e;
+	for (multiset<Edge, greater<Edge>>::iterator eit = edges.begin(); eit != edges.end(); eit++) {
+		e = *eit;
+		if (e.origin == edge.origin && e.destination == edge.destination) {
+			count++;
+		}
+		if (e.origin == edge.destination && e.destination == edge.origin) {
+			count++;
+		}
+	}
+	return count;
+}
+
 void dfs(Graph g) {
-	
 	int node = partial_solution.back();
 	if (node == 1) {
-		if (partial_solution[0] > best_solution[0]) {
+		if (partial_benefit > best_benefit) {
 			best_solution = partial_solution;
+			best_benefit = partial_benefit;
 		}
 	}
 
-	set<Node>::iterator nit;	//Need to iterate through nodes as we build the cycle
-	multiset<Edge, greater<Edge>>::iterator eit;	//Also need to iterate through the edges
+	int count;
+	set<Node>::iterator nit;
+	multiset<Edge, greater<Edge>>::iterator eit;
 	nit = g.nodes.find(Node(node));
 	Node n = *nit;
-	eit = n.edges.begin();	//And on the first edge of it, they're already sorted by gain
-	Edge e = *eit;
-	int changed_benefit;
-	Graph old_g = g;
-	while (eit != n.edges.end()) {
-		if (bound_check(e, partial_solution) && e.passes < 2) {
+	Edge e;
+	time_t end;
+	time_t time_left;
 
-			partial_solution.push_back(e.destination);	//If it hasn't be travelled twice, we pick it, add it to the cycle
-			changed_benefit = e.benefit - e.cost;
-			partial_solution[0] += e.benefit - e.cost;	//Update the gain
-			available_benefit += max(0, e.benefit - e.cost);
-
-			int old_benefit = e.benefit;	//Save the old benefit
-			e.benefit = 0;	//Update the benefit to 0, since it just got travelled, notice this happens regardless of passes
-			e.passes++;	//Update the passes, notice this only happens at most twice with every edge
-
-			n.edges.erase(eit);	//Update the edge in the node
-			n.edges.insert(e);
-
-			g.nodes.erase(nit);	//Update the node in the graph
-			g.nodes.insert(n);
-
-			swap(e.origin, e.destination);	//Swap the origin and destination, to update it on the other node
-
-			nit = g.nodes.find(Node(e.origin));	//Find the other node
-			n = *nit;
-
-			int old_destination = e.destination;	//We save the old destination to find the correct node, since
-			e.benefit = old_benefit;	//Restore the original edge, this is for purposes of finding it
-			eit = n.edges.find(e);	//Then once restored, we find it
-			e = *eit;
-			while (e.destination != old_destination) {	//Since the nodes are found using only benefit/cost
-				eit++;	//We have to make sure we get the right node comparing the destination
-				e = *eit;	//We conveniently saved previously
-			}
-
-			e.benefit = 0;	//We update the benefit again to 0
-			e.passes++;	//Update the passes on it as well
-			n.edges.erase(eit);	//We update the edge on the node
-			n.edges.insert(e);
-
-			g.nodes.erase(nit);	//Update the node in the grapph
-			g.nodes.insert(n);
-
-			dfs(g);
-			
-			nit = g.nodes.find(Node(node));
-			n = *nit;
-			eit = n.edges.begin();
-			e = *eit;
+	for (eit = n.edges.begin(); eit != n.edges.end(); eit++) {
+		end = time(0);
+		time_taken = end - start;
+		time_left = total_time - time_taken;
+		if (time_left <= 0) {
+			return;
 		}
-
-		else {
-			eit++;
-			e = *eit;
+		e = *eit;
+		count = edge_in_trail(e, partial_solution_edges);
+		if (count < 2) {
+			if (count == 1) {
+				e.benefit = 0;
+			}
+		
+			if (bound_check(e, partial_solution)) {
+				partial_solution_edges.insert(e);
+				partial_solution.push_back(e.destination);	
+				partial_benefit += e.benefit - e.cost;
+				available_benefit -= max(0, e.benefit - e.cost);
+				dfs(g);
+			}
 		}
 	}
 
-	cout << "Backtracking here\n";
-
-	for (int i = 0; i < partial_solution.size(); i++) {
-		cout << partial_solution[i] << ' ';
-	} 
-	cout << '\n';
-
-
+	node = partial_solution.back();
 	partial_solution.pop_back();
-	partial_solution[0] -= changed_benefit;
+	eit = partial_solution_edges.begin();
+	e = *eit;
 
-	available_benefit += changed_benefit;
-	g = old_g;
+	while (e.origin != partial_solution.back() || e.destination != node) {
+		if (eit == partial_solution_edges.end()) {
+			return;
+		}
+		eit++;
+		e = *eit;
+	}
+	partial_benefit -= e.benefit - e.cost;
+	available_benefit += max(0, e.benefit - e.cost);
+	partial_solution_edges.erase(eit);
 }
 
 
@@ -387,6 +382,9 @@ int main(int argc, char* argv[]) {
 			e.cost = stoi(subString); //Cost first
 			it_sub_string >> subString;
 			e.benefit = stoi(subString); //Benefit second
+			if (e.benefit - e.cost >= 0) {
+				available_benefit += e.benefit; 
+			}
 			e.passes = 0;
 
 			if (e.benefit - 2 * e.cost >= 0) { //If the edge belongs to R then add it to the R graph
@@ -397,13 +395,25 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	partial_solution.push_back(0);
 	partial_solution.push_back(1);
-	best_solution = partial_solution;
-	available_benefit = stoi(argv[2]);
+	partial_benefit = 0;
+
+	best_solution = trail(graph);
+	best_solution = negative_cycle_elimination(best_solution, graph);
+	best_benefit = best_solution[0];
+	best_solution.erase(best_solution.begin());
+
+	total_time = 3600;
+	start = time(0);
 	dfs(graph);
+
+	string filename = argv[1];
+	ofstream outfile(filename + "-BnBsalida.txt");
+
+	outfile << best_benefit << '\n';
 	for (int i = 0; i < best_solution.size(); i++) {
-		cout << best_solution[i] << ' ';
+		outfile << best_solution[i] << ' ';
 	}
-	cout << '\n';
+	outfile << '\n';
+	outfile << "Took " << time_taken << " seconds";
 }
