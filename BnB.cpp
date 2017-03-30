@@ -403,7 +403,7 @@ int main(int argc, char* argv[]) {
 	best_benefit = best_solution[0];
 	best_solution.erase(best_solution.begin());
 
-	total_time = 3600;
+	total_time = 7200;
 	start = time(0);
 	dfs(graph);
 
