@@ -1,0 +1,3 @@
+31
+1 7 1 
+Took 7200 seconds
